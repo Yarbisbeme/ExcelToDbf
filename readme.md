@@ -5,6 +5,21 @@ Este script es una herramienta automatizada y reutilizable escrita en Visual Fox
 
 El sistema resuelve problemas comunes de importación como la generación de "columnas fantasma" por parte de Excel, desajustes en los nombres de las cabeceras y errores de tipos de datos, utilizando un puente SQL dinámico que mapea la información por posición estricta.
 
+
+------
+## 🛡️ Versión 2: Importación Segura (OLE Automation / Anti-Crash)
+
+**Contexto de la actualización:** La versión nativa de importación de FoxPro presenta un bug de desbordamiento de memoria (Fatal Error C0000005) al leer archivos Excel generados por sistemas modernos que contienen metadatos complejos o fechas con milisegundos.
+
+Para evitar cierres abruptos del sistema, esta **Versión 2** implementa **Automatización OLE (COM).**
+
+### 🌟 Mejoras en V2:
+- **Motor Anti-Crash:** El script invoca a Microsoft Excel de forma invisible (en segundo plano) para abrir el archivo original y convertirlo "al vuelo" a un formato de texto plano (.CSV), el cual es 100% seguro para la memoria de FoxPro.
+
+- **Limpieza Automática (Garbage Collection):** El archivo .CSV temporal se crea, se lee y se elimina físicamente del disco duro en la misma ejecución, manteniendo el entorno limpio.
+
+- **Mayor Tolerancia a Errores:** Permite procesar archivos que tengan estructuras internas irregulares sin colapsar el entorno.
+
 -------------------
 ## ✨ Características Principales
 
@@ -25,11 +40,13 @@ El sistema resuelve problemas comunes de importación como la generación de "co
 
 - Base de datos destino abierta o accesible en la ruta de trabajo.
 
+- **NUEVO (V2): Microsoft Excel** debe estar instalado en la máquina o servidor que ejecuta el script (requerido para instanciar el objeto ``Excel.Application``).
+
 ---------
 ## 🚀 Instrucciones de Uso
 
 #### 1. Preparación del entorno y ejecución
-Para utilizar la herramienta, simplemente configura tu entorno, llama a la función ImportarExcelDinamico pasándole los 3 parámetros requeridos y asegúrate de colocar un RETURN para separar la ejecución de la declaración de la función.
+PPara utilizar la herramienta, simplemente configura tu entorno, llama a la función `ImportarExcelDinamico` pasándole los 3 parámetros requeridos y asegúrate de colocar un `RETURN` para separar la ejecución de la declaración de la función.
 
 ```
 ** Configuración inicial
@@ -58,11 +75,15 @@ RETURN
 
 Al realizar pruebas de regresión o validación de carga con este script, se recomienda verificar lo siguiente:
 
-**Validación de Filas:** Compara el RECCOUNT() de la tabla destino con el número de filas reales (sin encabezado) en el Excel original.
+- **Validación de Filas:** Compara el RECCOUNT() de la tabla destino con el número de filas reales (sin encabezado) en el Excel original.
 
-**Validación de Columnas:** Si el Excel presenta errores, revisa el FCOUNT() del alias temporal que se genera durante el IMPORT para detectar columnas basura.
+- **Validación de Columnas:** Si el Excel presenta errores, revisa el FCOUNT() del alias temporal que se genera durante el IMPORT para detectar columnas basura.
 
-**Campos Memo:** Verifica visualmente (mediante BROWSE) que los datos no se hayan desplazado. El puente SQL garantiza la integridad, pero siempre es buena práctica revisar la última columna importada.
+- **Campos Memo:** Verifica visualmente (mediante BROWSE) que los datos no se hayan desplazado. El puente SQL garantiza la integridad, pero siempre es buena práctica revisar la última columna importada.
+
+- **Gestión de Procesos (V2):** Si el script es interrumpido manualmente durante el paso de conversión OLE, abrir el Administrador de Tareas de Windows y verificar que no queden procesos EXCEL.EXE colgados en segundo plano.
+
+- **Tiempos de Carga (V2):** Validar que el tiempo de ejecución es el esperado (suele agregar entre 1 y 2 segundos debido a la apertura en segundo plano de la instancia de Excel).
 
 ## 👨‍💻 Mantenimiento y Autoría
 

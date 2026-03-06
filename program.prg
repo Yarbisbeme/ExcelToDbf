@@ -1,47 +1,82 @@
 **=======================================================**
-** Llamada a la función (Ejemplo de uso)
+** Llamada a la funciÃ³n (Ejemplo de uso)
 **=======================================================**
 OPEN DATABASE C:\Eikon_Vs\Eikon\Eikon_V7_QA\Exe\datasql.dbc SHARED
 m_empresa = 01
 CD C:\Eikon_Vs\Eikon\Eikon_V7_QA\
 
-* Aquí pasas la ruta, la hoja y la tabla destino
-DO ImportarExcelDinamico WITH "C:\Users\Eikon\Downloads\Nomina\NOMINA16.XLS", "frhwd010", "frhwh010"
-
-* ¡AQUÍ ESTÁ LA SOLUCIÓN!
-* Esto detiene el script principal para que no vuelva a entrar al procedure por accidente
+DO ImportarExcelDinamico WITH "C:\Users\Eikon\Downloads\Nomina\NOMINA24.XLS", "frhwd010", "frhwh010"
 RETURN 
 
-
 **=======================================================**
-** Procedimiento Reutilizable
+** Procedimiento Reutilizable (Con AutomatizaciÃ³n Excel)
 **=======================================================**
 PROCEDURE ImportarExcelDinamico
     LPARAMETERS lcRutaExcel, lcHojaExcel, lcTablaDestino
     
     LOCAL lcAliasExcel, nCamposReales, nCamposExcel, nLimite, lcCamposSQL, i, lcQuery
+    LOCAL loExcel, loLibro, lcRutaCSV
     
     lcAliasExcel = JUSTSTEM(lcRutaExcel) 
+    * Definimos dÃ³nde se guardarÃ¡ el archivo temporal seguro
+    lcRutaCSV = "C:\Eikon_Vs\Eikon\Eikon_V7_QA\" + lcAliasExcel + ".csv"
 
     **=======================================================**
-    ** 1. Importación y Cursor Maestro
+    ** 1. ConversiÃ³n OLE (El AntÃ­doto contra el Crash)
     **=======================================================**
-    * Se agregaron paréntesis a lcHojaExcel para forzar su lectura como variable
-    IMPORT FROM (lcRutaExcel) TYPE XL8 SHEET (lcHojaExcel)
+    WAIT WINDOW "Convirtiendo Excel mediante OLE... Por favor espere." NOWAIT
     
+    * Invocamos a Microsoft Excel en segundo plano
+    loExcel = CreateObject("Excel.Application")
+    loExcel.Visible = .F.       && Que no se vea en pantalla
+    loExcel.DisplayAlerts = .F. && Que no pida confirmaciones
+
+    * Abrimos tu archivo problemÃ¡tico
+    loLibro = loExcel.Workbooks.Open(lcRutaExcel)
+    
+    * Seleccionamos la hoja especÃ­fica
+    loLibro.Sheets(lcHojaExcel).Select()
+
+    * Guardamos mÃ¡gicamente como CSV (Formato 6 = xlCSV)
+    loLibro.SaveAs(lcRutaCSV, 6)
+    
+    * Cerramos todo limpiamente
+    loLibro.Close(.F.)
+    loExcel.Quit()
+    RELEASE loExcel
+    
+    WAIT CLEAR
+
+    **=======================================================**
+    ** 2. ImportaciÃ³n Segura desde CSV
+    **=======================================================**
+    * Creamos un cursor temporal genÃ©rico para recibir el CSV
+    CREATE CURSOR cur_csv_temp (A C(250), B C(250), C C(250), D C(250), E C(250), ;
+                                F C(250), G C(250), H C(250), I C(250), J C(250), ;
+                                K C(250), L C(250), M C(250), N C(250), O C(250))
+                                
+    SELECT cur_csv_temp
+    * Importamos el CSV (Esto JAMÃS crashea FoxPro)
+    APPEND FROM (lcRutaCSV) TYPE CSV
+    
+    * Borramos la primera fila (encabezados)
+    GO TOP
+    DELETE
+    
+    * Creamos tu cursor maestro
     SELECT * FROM (lcTablaDestino) WHERE .F. INTO CURSOR cur_tabla READWRITE 
 
     **=======================================================**
-    ** 2. El Puente SQL Automatizado
+    ** 3. El Puente SQL Automatizado
     **=======================================================**
     nCamposReales = FCOUNT("cur_tabla")
-    nCamposExcel  = FCOUNT(lcAliasExcel)
+    nCamposExcel  = FCOUNT("cur_csv_temp")
 
     nLimite = MIN(nCamposReales, nCamposExcel)
     lcCamposSQL = ""
 
     FOR i = 1 TO nLimite
-        lcCampoExcel = FIELD(i, lcAliasExcel)
+        lcCampoExcel = FIELD(i, "cur_csv_temp")
         lcCampoReal  = FIELD(i, "cur_tabla")
         
         lcCamposSQL = lcCamposSQL + lcCampoExcel + " AS " + lcCampoReal
@@ -51,20 +86,25 @@ PROCEDURE ImportarExcelDinamico
         ENDIF
     ENDFOR
 
-    lcQuery = "SELECT " + lcCamposSQL + " FROM " + lcAliasExcel + " WHERE RECNO() > 1 INTO CURSOR cur_puente"
+    lcQuery = "SELECT " + lcCamposSQL + " FROM cur_csv_temp INTO CURSOR cur_puente"
     &lcQuery
 
     **=======================================================**
-    ** 3. Inserción Perfecta
+    ** 4. InserciÃ³n Perfecta
     **=======================================================**
     SELECT (lcTablaDestino)
     APPEND FROM DBF("cur_puente")
 
-    BROWSE TITLE "Datos importados a: " + lcTablaDestino
+    BROWSE TITLE "Â¡Misterio Resuelto! Datos importados sin Crash"
     
-    * Limpieza de memoria
-    USE IN SELECT(lcAliasExcel)  
+    * Limpieza fÃ­sica
+    ERASE (lcRutaCSV)  && Borramos el CSV temporal para no dejar basura
+    
+    USE IN SELECT("cur_csv_temp")  
     USE IN SELECT("cur_tabla")
     USE IN SELECT("cur_puente")
 
 ENDPROC
+
+USE frhwh010
+BROWSE
